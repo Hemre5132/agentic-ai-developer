@@ -191,9 +191,18 @@ final class AppGroupStore {
 
     /// At most one issue report per local calendar day (shared across app + keyboard via App Group).
     func canSubmitIssueReportToday(now: Date = .init()) -> Bool {
+        if AppConfig.issueReportBypassDailyLimitForTesting { return true }
         let last = issueReportLastSubmittedAt
         guard last > 0 else { return true }
         let lastDate = Date(timeIntervalSince1970: last)
         return !Calendar.current.isDate(lastDate, inSameDayAs: now)
+    }
+
+    /// Same calendar-day rule as `canSubmitIssueReportToday`, ignoring the dev plist bypass (for UI “blocked” state).
+    func isIssueReportBlockedByLocalDay(now: Date = .init()) -> Bool {
+        let last = issueReportLastSubmittedAt
+        guard last > 0 else { return false }
+        let lastDate = Date(timeIntervalSince1970: last)
+        return Calendar.current.isDate(lastDate, inSameDayAs: now)
     }
 }

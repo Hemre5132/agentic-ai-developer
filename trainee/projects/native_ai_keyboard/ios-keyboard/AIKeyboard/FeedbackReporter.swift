@@ -1,43 +1,238 @@
-import FirebaseAnalytics
-import FirebaseAuth
-import FirebaseCore
-import FirebaseFirestore
 import Foundation
 import UIKit
 
-/// Writes user issue reports to top-level `issue_reports/{doc}` with `idfv` on each doc (filter/group in console by `idfv`).
+enum IssueReportL10n {
+    private static var useTurkish: Bool {
+        let id = Locale.current.language.languageCode?.identifier ?? ""
+        return id == "tr" || id.hasPrefix("tr")
+    }
+
+    static var openReport: String {
+        useTurkish ? "Sorun bildir" : "Report a problem"
+    }
+
+    static var sheetTitle: String { openReport }
+
+    static func sheetFooter(canSendToday: Bool) -> String {
+        if useTurkish {
+            return canSendToday
+                ? "Takvim günü başına bir bildirim."
+                : "Bugünkü bildiriminizi zaten gönderdiniz."
+        }
+        return canSendToday
+            ? "One report per calendar day."
+            : "You've already sent today's report."
+    }
+
+    static var reportPlaceholder: String {
+        useTurkish ? "Sorunu buraya yazın (en az 10 karakter)…" : "Describe the issue (at least 10 characters)…"
+    }
+
+    /// Shown when the local daily cap is reached (no text field).
+    static var sheetBlockedTitle: String {
+        useTurkish ? "Bugün için kapalı" : "Closed for today"
+    }
+
+    static var sheetBlockedSubtitle: String {
+        useTurkish
+            ? "Bu cihazda bugün zaten bir bildirim gönderildi.\nYarın yeni bir bildirim gönderebilirsiniz."
+            : "You already sent a report from this device today.\nYou can send another one tomorrow."
+    }
+
+    /// Shown when `AIKeyboardIssueReportBypassDailyLimit` is true (dev only).
+    static var devBypassBanner1: String {
+        useTurkish
+            ? "Test: yerel günlük sınır kapalı (Info.plist)."
+            : "Test: local daily limit is off (Info.plist)."
+    }
+
+    static var devBypassBanner2: String {
+        useTurkish
+            ? "Sunucu hâlâ 429 verirse: `supabase secrets set ISSUE_REPORT_BYPASS_UTC_RATE_LIMIT=true` (yalnızca test)."
+            : "If the server still returns 429: `supabase secrets set ISSUE_REPORT_BYPASS_UTC_RATE_LIMIT=true` (testing only)."
+    }
+
+    static var submit: String { useTurkish ? "Gönder" : "Send" }
+    static var cancel: String { useTurkish ? "Vazgeç" : "Cancel" }
+    static var sent: String {
+        useTurkish ? "Teşekkürler — bildiriminiz alındı." : "Thanks — we received your report."
+    }
+
+    static var errorTooShort: String {
+        useTurkish ? "Lütfen en az 10 karakter yazın." : "Please write at least 10 characters."
+    }
+    static var errorRateLimited: String {
+        useTurkish
+            ? "Günde yalnızca bir bildirim. Yarın tekrar deneyin."
+            : "One report per day. Try again tomorrow."
+    }
+    static var errorSupabaseUnconfigured: String {
+        useTurkish
+            ? "Bildirim şu an kullanılamıyor. Uygulama yapılandırmasını kontrol edin."
+            : "Reporting isn't available yet. Check the app configuration."
+    }
+    static var errorDeviceNotRegistered: String {
+        useTurkish
+            ? "Cihaz henüz kayıtlı değil. Ağ ve uygulama ayarlarını kontrol edin."
+            : "This device isn't registered yet. Check network and app settings."
+    }
+    static var errorReportEndpointMissing: String {
+        useTurkish
+            ? "Rapor servisine ulaşılamadı. Daha sonra tekrar deneyin."
+            : "We couldn't reach the report service. Try again later."
+    }
+    /// Likely missing `issue_reports` table / migration on the hosted project (HTTP 500 from PostgREST).
+    static var errorReportDatabaseUnavailable: String {
+        useTurkish
+            ? "Rapor kaydedilemedi. Veritabanı henüz güncellenmemiş olabilir; bir süre sonra tekrar deneyin."
+            : "Your report couldn't be saved. The server database may still be updating — try again later."
+    }
+    static var errorSubmitFailed: String {
+        useTurkish
+            ? "Bildirim gönderilemedi. Daha sonra yeniden deneyin."
+            : "Could not submit the report. Try again later."
+    }
+}
+
+/// Submits issue reports via Supabase Edge `submit-issue-report` (DB row + optional Resend email to the project owner).
 enum FeedbackReporter {
     enum SubmitError: LocalizedError {
         case tooShort
         case rateLimited
-        case firebaseOff
-        case notSignedIn
-        case firestorePermissionDenied
+        case supabaseUnconfigured
+        case deviceNotRegistered
+        /// Supabase gateway / missing Edge function (HTTP 404, “function not found”).
+        case reportEndpointMissing
+        /// Hosted DB missing `issue_reports` (or similar) — run `supabase db push` on the project.
+        case reportDatabaseUnavailable
+        /// Any other non-success HTTP; `diagnostic` is for Crashlytics only — never shown in the sheet.
+        case serverFailed(status: Int, diagnostic: String)
 
         var errorDescription: String? {
             switch self {
             case .tooShort:
-                return String(localized: "feedback.error.too_short")
+                return IssueReportL10n.errorTooShort
             case .rateLimited:
-                return String(localized: "feedback.error.rate_limited")
-            case .firebaseOff:
-                return String(localized: "feedback.error.firebase_off")
-            case .notSignedIn:
-                return String(localized: "feedback.error.not_signed_in")
-            case .firestorePermissionDenied:
-                return String(localized: "feedback.error.firestore_permission.title")
+                return IssueReportL10n.errorRateLimited
+            case .supabaseUnconfigured:
+                return IssueReportL10n.errorSupabaseUnconfigured
+            case .deviceNotRegistered:
+                return IssueReportL10n.errorDeviceNotRegistered
+            case .reportEndpointMissing:
+                return IssueReportL10n.errorReportEndpointMissing
+            case .reportDatabaseUnavailable:
+                return IssueReportL10n.errorReportDatabaseUnavailable
+            case .serverFailed:
+                return IssueReportL10n.errorSubmitFailed
             }
         }
 
-        /// Longer steps shown in the report sheet (scrollable); keep `errorDescription` short.
-        var sheetDetail: String? {
+        /// Raw API bodies are not shown here (avoids JSON / “NOT FOUND” noise in the UI).
+        var sheetDetail: String? { nil }
+
+        /// Richer context for `NonFatalLog` / Crashlytics.
+        func loggableUnderlyingError() -> Error {
             switch self {
-            case .firestorePermissionDenied:
-                return String(localized: "feedback.error.firestore_permission.detail")
+            case .reportEndpointMissing:
+                return NSError(
+                    domain: "AIKeyboard.issue_report",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "issue_report HTTP 404 (submit-issue-report missing or wrong URL)"]
+                )
+            case .reportDatabaseUnavailable:
+                return NSError(
+                    domain: "AIKeyboard.issue_report",
+                    code: 500,
+                    userInfo: [NSLocalizedDescriptionKey: "issue_report DB schema (issue_reports missing or migration not applied)"]
+                )
+            case .serverFailed(let status, let diagnostic):
+                return NSError(
+                    domain: "AIKeyboard.issue_report",
+                    code: status,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "issue_report HTTP \(status)",
+                        "responseBody": diagnostic,
+                    ]
+                )
             default:
-                return nil
+                return self
             }
         }
+    }
+
+    private struct SubmitBody: Encodable {
+        let body: String
+        let appVersion: String
+        let build: String
+        let osVersion: String
+        let localeIdentifier: String
+        let preferredLanguages: String
+    }
+
+    private struct SubmitOk: Decodable {
+        let ok: Bool?
+        let mailSent: Bool?
+        let mailDetail: String?
+    }
+
+    private struct ApiErrorBody: Decodable {
+        let error: ApiErr?
+        struct ApiErr: Decodable {
+            let code: String?
+            let message: String?
+        }
+    }
+
+    /// Supabase gateway errors are often flat `{ "code", "message" }`; our Edge returns `{ "error": { … } }`.
+    private struct FlatGatewayError: Decodable {
+        let code: String?
+        let message: String?
+    }
+
+    private static func responseLooksLikeMissingFunction(status: Int, data: Data) -> Bool {
+        if status == 404 { return true }
+        let flat = try? JSONDecoder().decode(FlatGatewayError.self, from: data)
+        if let code = flat?.code?.uppercased(), code == "NOT_FOUND" { return true }
+        let msg = (flat?.message ?? "").lowercased()
+        let needles = [
+            "requested function was not found",
+            "function was not found",
+            "no function",
+        ]
+        if needles.contains(where: { msg.contains($0) }) { return true }
+        if let raw = String(data: data, encoding: .utf8)?.lowercased(),
+           needles.contains(where: { raw.contains($0) })
+        {
+            return true
+        }
+        return false
+    }
+
+    private static func extractEdgeErrorMessage(data: Data) -> String? {
+        if let nested = try? JSONDecoder().decode(ApiErrorBody.self, from: data),
+           let m = nested.error?.message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty
+        {
+            return m
+        }
+        if let flat = try? JSONDecoder().decode(FlatGatewayError.self, from: data),
+           let m = flat.message?.trimmingCharacters(in: .whitespacesAndNewlines), !m.isEmpty
+        {
+            return m
+        }
+        return nil
+    }
+
+    /// PostgREST errors when `issue_reports` (or related) is missing on the hosted project.
+    private static func responseLooksLikeMissingIssueReportsTable(status: Int, data: Data) -> Bool {
+        guard status == 500 else { return false }
+        let parsed = extractEdgeErrorMessage(data: data) ?? ""
+        let raw = String(data: data, encoding: .utf8) ?? ""
+        let blob = (parsed + "\n" + raw).lowercased()
+        if blob.contains("issue_reports") { return true }
+        if blob.contains("does not exist") || blob.contains("could not find the table") { return true }
+        if blob.contains("schema cache") { return true }
+        if blob.contains("pgrst") && blob.contains("relation") { return true }
+        return false
     }
 
     static func canSubmitToday() -> Bool {
@@ -48,56 +243,70 @@ enum FeedbackReporter {
         let trim = body.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trim.count >= 10 else { throw SubmitError.tooShort }
         guard AppGroupStore.shared.canSubmitIssueReportToday() else { throw SubmitError.rateLimited }
-        guard FirebaseApp.app() != nil else { throw SubmitError.firebaseOff }
+        guard AppConfig.usesSupabaseTransform else { throw SubmitError.supabaseUnconfigured }
+        guard let fnBase = AppConfig.supabaseFunctionsBaseURL() else { throw SubmitError.supabaseUnconfigured }
 
-        await FirebaseDeviceRegistry.ensureAnonymousUserIfNeeded()
-        guard let user = Auth.auth().currentUser else { throw SubmitError.notSignedIn }
-        _ = try await user.getIDToken(forcingRefresh: true)
+        do {
+            try await SupabaseDeviceAPI.registerIfNeeded()
+        } catch {
+            throw SubmitError.deviceNotRegistered
+        }
+        guard let token = AppGroupStore.shared.deviceTransformToken, !token.isEmpty else {
+            throw SubmitError.deviceNotRegistered
+        }
 
-        let id = DeviceId.idfv
-        let db = Firestore.firestore()
-        // Top-level collection keeps Firestore rules simple (nested `devices/.../issue_reports` is easy to mis-deploy).
-        let ref = db.collection("issue_reports").document()
+        let url = fnBase.appendingPathComponent("submit-issue-report")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 60
+
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
         let langs = Locale.preferredLanguages.joined(separator: ",")
+        let payload = SubmitBody(
+            body: trim,
+            appVersion: v,
+            build: build,
+            osVersion: UIDevice.current.systemVersion,
+            localeIdentifier: Locale.current.identifier,
+            preferredLanguages: langs
+        )
+        req.httpBody = try JSONEncoder().encode(payload)
 
-        do {
-            try await ref.setData(
-                [
-                    "body": trim,
-                    "createdAt": FieldValue.serverTimestamp(),
-                    "idfv": id,
-                    "appVersion": v,
-                    "build": build,
-                    "osVersion": UIDevice.current.systemVersion,
-                    "localeIdentifier": Locale.current.identifier,
-                    "preferredLanguages": langs,
-                ]
-            )
-        } catch {
-            let ns = error as NSError
-            let permissionDeniedCode = 7
-            let firestoreDomains: Set<String> = ["FIRFirestoreErrorDomain", "FirestoreErrorDomain"]
-            if firestoreDomains.contains(ns.domain), ns.code == permissionDeniedCode {
-                NonFatalLog.breadcrumb(
-                    "issue_report denied domain=\(ns.domain) code=\(ns.code) desc=\(ns.localizedDescription)",
-                    category: "feedback"
-                )
-                throw SubmitError.firestorePermissionDenied
-            }
-            let msg = ns.localizedDescription.lowercased()
-            if msg.contains("insufficient permissions") || msg.contains("permission denied") {
-                NonFatalLog.breadcrumb(
-                    "issue_report denied (message) domain=\(ns.domain) code=\(ns.code)",
-                    category: "feedback"
-                )
-                throw SubmitError.firestorePermissionDenied
-            }
-            throw error
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        guard let http = resp as? HTTPURLResponse else {
+            throw SubmitError.serverFailed(status: -1, diagnostic: "non-http response")
         }
 
+        if http.statusCode == 429 {
+            throw SubmitError.rateLimited
+        }
+        if http.statusCode == 401 {
+            throw SubmitError.deviceNotRegistered
+        }
+
+        if !(200 ... 299).contains(http.statusCode) {
+            if Self.responseLooksLikeMissingFunction(status: http.statusCode, data: data) {
+                throw SubmitError.reportEndpointMissing
+            }
+            if Self.responseLooksLikeMissingIssueReportsTable(status: http.statusCode, data: data) {
+                throw SubmitError.reportDatabaseUnavailable
+            }
+            let raw = String(data: data, encoding: .utf8) ?? ""
+            let parsed = Self.extractEdgeErrorMessage(data: data)
+            let diagnostic: String
+            if let parsed, !parsed.isEmpty {
+                diagnostic = "parsedMessage=\(parsed)\nraw=\(raw)"
+            } else {
+                diagnostic = raw.isEmpty ? "(empty body)" : raw
+            }
+            throw SubmitError.serverFailed(status: http.statusCode, diagnostic: diagnostic)
+        }
+
+        _ = try? JSONDecoder().decode(SubmitOk.self, from: data)
+
         AppGroupStore.shared.issueReportLastSubmittedAt = Date().timeIntervalSince1970
-        Analytics.logEvent("issue_report_submitted", parameters: ["char_count": trim.count])
     }
 }

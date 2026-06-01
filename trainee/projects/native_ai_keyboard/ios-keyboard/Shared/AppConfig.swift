@@ -39,6 +39,13 @@ enum AppConfig {
         return false
     }
 
+    /// Dev only: allow opening the issue-report field again the same calendar day. Server may still rate-limit unless `ISSUE_REPORT_BYPASS_UTC_RATE_LIMIT` is set on Edge. **Never ship `true` to App Store.**
+    static var issueReportBypassDailyLimitForTesting: Bool {
+        if let b = Bundle.main.object(forInfoDictionaryKey: "AIKeyboardIssueReportBypassDailyLimit") as? Bool { return b }
+        if let n = Bundle.main.object(forInfoDictionaryKey: "AIKeyboardIssueReportBypassDailyLimit") as? NSNumber { return n.boolValue }
+        return false
+    }
+
     static var apiBaseURL: URL {
         if let override = AppGroupStore.shared.apiBaseURLString, let u = URL(string: override) {
             return u

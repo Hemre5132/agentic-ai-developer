@@ -51,8 +51,28 @@ The host app includes **Firebase Crashlytics**, **Google Analytics for Firebase*
 - **DEBUG** builds only: on first successful `FirebaseApp.configure()` in each process (host and/or keyboard), a **one-time non-fatal** `AIKeyboardSmokeTest` is sent so you can confirm Crashlytics without a real crash. Uses `UserDefaults` key `crashlytics_debug_nonfatal_smoke_v2` after the event (skipped entirely if `GoogleService-Info.plist` is missing). **Release** builds do not send this.
 - **dSYM / symbolication:** `project.yml` sets **`DEBUG_INFORMATION_FORMAT = dwarf-with-dsym`** for the app and keyboard extension so each build produces dSYM bundles. The **Firebase Crashlytics** run script (post-build on the host target) uploads symbols when the script can reach Google’s upload endpoint (needs network during archive). If the console still says *“Upload dSYM”*, use **Xcode → Organizer** → select the archive → **Distribute App** / **Upload** (which includes symbols), or manually upload the `.dSYM` from `DerivedData` / archive’s `dSYMs` folder via Crashlytics’ **Missing dSYM** flow.
 - Write one document per device under **`devices/{IDFV}`** after each **Account sync** (device id matches `AccountSync`). Fields include `entitlementActive`, app/OS version, `preferredLanguages`, `updatedAt` (server time).
-- Optional user **issue reports** in top-level **`issue_reports/{autoId}`** (each doc includes **`idfv`** for filtering/grouping in the console). At most **one report per calendar day** per device (enforced in the client via App Group storage).
+- **“Report a problem”** is stored in **Supabase** (`public.issue_reports`) via Edge **`submit-issue-report`** (Bearer `deviceTransformToken`). At most **one report per UTC day** per device on the server; the client also limits once per **local** calendar day via App Group. Optional **Resend** email to the project owner when Edge secrets `RESEND_API_KEY` and `REPORT_TO_EMAIL` are set (see `supabase/functions/README.md`).
+
+**Testing another report the same day:** In **`AIKeyboard/Info.plist`**, **`AIKeyboardIssueReportBypassDailyLimit`** is set to **`true`** for development so the local daily cap is off (orange test banner in the sheet). For the **server** UTC limit, run `supabase secrets set ISSUE_REPORT_BYPASS_UTC_RATE_LIMIT=true` and redeploy `submit-issue-report` — see [`../supabase/README.md`](../supabase/README.md). Hint script from monorepo root: `./trainee/projects/native_ai_keyboard/supabase/scripts/dev-issue-report-test-hints.sh`. **Turn both off before production / App Store.**
 - Log Analytics event **`entitlement_snapshot`** and user properties `device_id`, `entitlement_active` for dashboards.
+
+### Manual QA: Sorun bildirimi (gerçek cihaz)
+
+1. **Supabase** — `supabase db push`, deploy `submit-issue-report`, set secrets as in [`../supabase/README.md`](../supabase/README.md) (issue reports section) and [`../supabase/functions/README.md`](../supabase/functions/README.md).
+2. **Host app** — `SupabaseProjectURL` in `Info.plist` points at your project; open the host once so the keyboard extension picks up config from the App Group.
+3. In the app, use **Sorun bildir** / **Report a problem**, enter at least 10 characters, submit.
+4. **Dashboard → SQL** — confirm a row:
+
+   ```sql
+   select id, device_id, left(body, 80) as body_preview, created_at
+   from public.issue_reports
+   order by created_at desc
+   limit 5;
+   ```
+
+5. If `RESEND_API_KEY` and `REPORT_TO_EMAIL` are set, check the inbox for the notification (still expect HTTP 201 / saved row even if mail fails).
+
+**API-only smoke** (no device): from `trainee/projects/native_ai_keyboard`, run `./supabase/scripts/smoke-submit-issue-report.sh` (local `supabase start` or set `SUPABASE_FUNCTIONS_BASE` to `https://<ref>.supabase.co/functions/v1`).
 
 ### Setup
 
@@ -63,9 +83,7 @@ The host app includes **Firebase Crashlytics**, **Google Analytics for Firebase*
 5. **Keyboard extension crashes:** add the **same** `GoogleService-Info.plist` to the **AIKeyboardKeyboard** target (Xcode → Build Phases → **Copy Bundle Resources**) so the file exists in the `.appex` bundle; otherwise extension-side `FirebaseApp.configure()` is skipped.
 6. Regenerate Xcode: `cd ios-keyboard && xcodegen generate`.
 
-The host app uses **Firebase Anonymous Auth** before writing. **Copy the full rules from [ios/firestore.rules.example](firestore.rules.example)** into Firebase Console → Firestore → Rules → **Publish**. The file includes a top-level **`issue_reports`** rule (used by the app) plus **`devices`** (sync). If you skip **`issue_reports`**, report sends show a permission error.
-
-Clients only **create** issue report docs; reads/updates/deletes are for admin/backend only (adjust if you add an admin tool with authenticated staff rules).
+The host app uses **Firebase Anonymous Auth** before writing device snapshots. **Copy the full rules from [ios/firestore.rules.example](firestore.rules.example)** into Firebase Console → Firestore → Rules → **Publish**. The file includes **`devices`** (sync). The top-level **`issue_reports`** rules are legacy if you still used older builds; new in-app reports use **Supabase** instead.
 
 Tighten later with [App Check](https://firebase.google.com/docs/app-check) and/or Cloud Functions (Anonymous is convenient for development, not a fraud barrier).
 
@@ -91,7 +109,7 @@ The **host** `Info.plist` key **`SupabaseProjectURL`** (project root URL, no `/f
 ### MVP checklist (hosted Supabase)
 
 1. Set **`SupabaseProjectURL`** in [`AIKeyboard/Info.plist`](AIKeyboard/Info.plist) (and optionally [`KeyboardExtension/Info.plist`](KeyboardExtension/Info.plist)) to `https://<project-ref>.supabase.co` — the checked-in template may point at a demo ref; replace with your project before shipping.
-2. **Open the host app** at least once and tap **Refresh session & device** so the URL is pushed to the App Group and `register-device` stores `deviceTransformToken`.
+2. **Open the host app** at least once so the URL is pushed to the App Group and `register-device` stores `deviceTransformToken` (the in-app “Connection / Refresh” control was removed; launch + background sync handles this).
 3. Enable **Allow Full Access** for **AI Keyboard** under iOS Settings → Keyboard.
 
 ## Full Access
@@ -121,7 +139,7 @@ Run the host app **once** after install so it writes `api_base_url_override` to 
 ## After deleting the app (clean install)
 
 1. App Group data is wiped — the keyboard will show **no session** until the host app runs again.
-2. Open **AI Keyboard** (host), tap **Refresh session & device**, or launch via `./scripts/run-ios-demo.sh` so `aikeyboard://refresh` / env is applied.
+2. Open **AI Keyboard** (host) once so `aikeyboard://refresh` / App Group sync can apply, or launch via `./scripts/run-ios-demo.sh`.
 3. From **Messages** with the keyboard visible: if you see the session hint, tap **Open app** / **Uygulama** on the keyboard — it opens `aikeyboard://refresh` and the host app syncs the device token / session into the App Group.
 4. Return to the chat and use **Rewrite** (Supabase) again.
 

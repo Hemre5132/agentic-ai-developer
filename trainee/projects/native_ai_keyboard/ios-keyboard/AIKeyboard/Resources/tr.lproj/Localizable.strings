@@ -10,10 +10,6 @@
 "settings.section.style" = "Yazım";
 "settings.ai_preview_toggle" = "Öneriyi klavyede önizle";
 "settings.ai_preview_footer" = "Açıkken önce klavyede öneri görünür; Uygula ile mesaja aktarılır. Kapalıyken metin alanı hemen güncellenir.";
-"settings.section.account" = "Bağlantı";
-"settings.sync_account" = "Oturumu ve cihazı yenile";
-"settings.status.session_ok" = "Hazır — klavye Supabase’i çağırabilir (cihaz kaydı tamam).";
-"settings.status.session_fail" = "Kurulum tamamlanamadı. SupabaseProjectURL, ağ ve Edge sırlarını kontrol edin.";
 "settings.open_keyboard_settings" = "Klavye ayarlarını aç";
 "action.done" = "Tamam";
 "action.cancel" = "Vazgeç";
@@ -40,13 +36,13 @@
 
 "feedback.open_report" = "Sorun bildir";
 "feedback.sheet.title" = "Sorun bildir";
-"feedback.sheet.footer" = "Günde yalnızca bir bildirim gönderebilirsiniz.";
+"feedback.sheet.footer" = "Takvim günü başına yalnızca bir sorun bildirimi gönderebilirsiniz.";
 "feedback.submit" = "Gönder";
 "feedback.submitting" = "Gönderiliyor…";
 "feedback.sent" = "Teşekkürler — bildiriminiz alındı.";
 "feedback.error.too_short" = "Lütfen en az 10 karakter yazın.";
 "feedback.error.rate_limited" = "Günde yalnızca bir sorun bildirimi gönderebilirsiniz. Yarın tekrar deneyin.";
-"feedback.error.firebase_off" = "Bildirim kullanılamıyor (Firebase yapılandırılmadı).";
-"feedback.error.not_signed_in" = "Anonim oturum açılamadı. Firebase Authentication’da Anonim girişi açıp yeniden deneyin.";
-"feedback.error.firestore_permission.title" = "Firestore yazmayı reddetti.";
-"feedback.error.firestore_permission.detail" = "Kontrol listesi:\n\n1) Authentication → Sign-in method → Anonim → AÇIK\n\n2) Firestore → Rules → repodaki ios/firestore.rules.example dosyasının tamamını yapıştır → Yayınla\n\n3) Firestore → App Check: Firestore için zorunluluk açıksa bu iOS uygulamasını kaydet veya testte kapat\n\n4) GoogleService-Info.plist ile Firestore aynı Firebase projesinde olmalı";
+"feedback.error.supabase_unconfigured" = "Bildirim için Supabase gerekir: Info.plist’te SupabaseProjectURL’i ayarlayıp uygulamayı bir kez açın.";
+"feedback.error.device_not_registered" = "Cihaz henüz Supabase’e kaydolamadı. Proje URL’si, ağ ve register-device dağıtımını kontrol edin.";
+"feedback.error.report_server" = "Bildirim gönderilemedi. Daha sonra yeniden deneyin.";
+"feedback.error.report_endpoint_missing" = "Sorun bildirimi şu an kullanılamıyor. Lütfen daha sonra tekrar deneyin.";

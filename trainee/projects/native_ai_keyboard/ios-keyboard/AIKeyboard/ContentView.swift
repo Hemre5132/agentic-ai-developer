@@ -5,8 +5,6 @@ struct ContentView: View {
     @State private var appearance: KeyboardAppearancePreference = AppGroupStore.shared.keyboardAppearancePreference
     @State private var chromeAccent: KeyboardChromeAccent = AppGroupStore.shared.keyboardChromeAccent
     @State private var aiPreviewBeforeApply: Bool = AppGroupStore.shared.aiPreviewBeforeApply
-    @State private var status: String = ""
-    @State private var isSyncing = false
     @State private var showReportProblem = false
 
     var body: some View {
@@ -67,26 +65,11 @@ struct ContentView: View {
                 }
 
                 Section {
-                    Button(String(localized: "settings.sync_account")) {
-                        Task { await refresh() }
-                    }
-                    .disabled(isSyncing)
-
-                    if !status.isEmpty {
-                        Text(status)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    Text(String(localized: "settings.section.account"))
-                }
-
-                Section {
                     Link(String(localized: "settings.open_keyboard_settings"), destination: URL(string: UIApplication.openSettingsURLString)!)
                     Button {
                         showReportProblem = true
                     } label: {
-                        Text(String(localized: "feedback.open_report"))
+                        Text(IssueReportL10n.openReport)
                     }
                 }
             }
@@ -98,7 +81,7 @@ struct ContentView: View {
                 chromeAccent = AppGroupStore.shared.keyboardChromeAccent
             }
             .task {
-                await refresh()
+                await bootstrapOnLaunch()
             }
             .onOpenURL { handleDeepLink($0) }
             .onReceive(NotificationCenter.default.publisher(for: .aiKeyboardOpenURL)) { note in
@@ -116,30 +99,27 @@ struct ContentView: View {
         guard url.scheme == "aikeyboard" else { return }
         switch url.host {
         case "refresh", "settings":
-            Task { await refresh() }
+            Task { await bootstrapOnLaunch() }
         default:
             break
         }
     }
 
-    private func refresh() async {
-        isSyncing = true
-        defer { isSyncing = false }
+    /// Registers the device with Supabase and refreshes session snapshot without surfacing a “Connection” UI.
+    private func bootstrapOnLaunch() async {
         HostSupabaseConfigSync.pushToAppGroupIfNeeded()
         try? await SupabaseDeviceAPI.registerIfNeeded()
         await AccountSync.syncAll()
-        if AppGroupStore.shared.isSessionValid() {
-            status = String(localized: "settings.status.session_ok")
-        } else {
-            status = String(localized: "settings.status.session_fail")
-        }
     }
 }
 
-// MARK: - Report a problem (same module as ContentView so the target always compiles without Xcode file-list drift)
+// MARK: - Report a problem
+// Co-located with ContentView so XcodeGen does not drop a separate file from the host target.
+// Shows a locked card when the local daily cap is hit (avoids a disabled TextField that blocks the keyboard).
 
 private struct ReportProblemSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var reportFieldFocused: Bool
 
     @State private var bodyText = ""
     @State private var submitting = false
@@ -150,13 +130,58 @@ private struct ReportProblemSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    Text(String(localized: "feedback.sheet.footer"))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    TextEditor(text: $bodyText)
-                        .frame(minHeight: 140)
-                        .disabled(submitting || !FeedbackReporter.canSubmitToday())
+                if AppConfig.issueReportBypassDailyLimitForTesting {
+                    Section {
+                        Text(IssueReportL10n.devBypassBanner1)
+                            .font(.footnote.weight(.semibold))
+                        Text(IssueReportL10n.devBypassBanner2)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .listRowBackground(Color.orange.opacity(0.2))
+                }
+
+                // `isIssueReportBlockedByLocalDay` ignores plist bypass so devs still see the locked UI when testing bypass off.
+                let calendarBlocked = AppGroupStore.shared.isIssueReportBlockedByLocalDay()
+                let devBypass = AppConfig.issueReportBypassDailyLimitForTesting
+                let showLockedCard = calendarBlocked && !devBypass
+
+                if showLockedCard {
+                    Section {
+                        VStack(spacing: 14) {
+                            Image(systemName: "lock.fill")
+                                .font(.title2)
+                                .foregroundStyle(.tertiary)
+                            Text(IssueReportL10n.sheetBlockedTitle)
+                                .font(.title3.bold())
+                                .multilineTextAlignment(.center)
+                            Text(IssueReportL10n.sheetBlockedSubtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
+                        .padding(.horizontal, 8)
+                    }
+                    .listRowInsets(EdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14))
+                    .listRowBackground(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.primary.opacity(0.14))
+                    )
+                } else {
+                    Section {
+                        Text(IssueReportL10n.sheetFooter(canSendToday: true))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        TextField(IssueReportL10n.reportPlaceholder, text: $bodyText, axis: .vertical)
+                            .lineLimit(14)
+                            .disabled(submitting)
+                            .focused($reportFieldFocused)
+                            .textInputAutocapitalization(.sentences)
+                            .autocorrectionDisabled(false)
+                    }
                 }
 
                 if !inlineMessage.isEmpty {
@@ -177,11 +202,11 @@ private struct ReportProblemSheet: View {
                     }
                 }
             }
-            .navigationTitle(Text("feedback.sheet.title"))
+            .navigationTitle(IssueReportL10n.sheetTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "action.cancel")) { dismiss() }
+                    Button(IssueReportL10n.cancel) { dismiss() }
                         .disabled(submitting)
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -189,7 +214,7 @@ private struct ReportProblemSheet: View {
                         if submitting {
                             ProgressView()
                         } else {
-                            Button(String(localized: "feedback.submit")) {
+                            Button(IssueReportL10n.submit) {
                                 Task { await submit() }
                             }
                             .disabled(
@@ -200,8 +225,15 @@ private struct ReportProblemSheet: View {
                     }
                 }
             }
+            .onAppear {
+                guard FeedbackReporter.canSubmitToday() else { return }
+                // Delay focus until the sheet detent animation finishes (keyboard reliability).
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    reportFieldFocused = true
+                }
+            }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large, .medium])
         .presentationDragIndicator(.visible)
     }
 
@@ -214,16 +246,16 @@ private struct ReportProblemSheet: View {
         do {
             try await FeedbackReporter.submitReport(body: bodyText)
             showSuccess = true
-            inlineMessage = String(localized: "feedback.sent")
+            inlineMessage = IssueReportL10n.sent
             try? await Task.sleep(nanoseconds: 600_000_000)
             dismiss()
         } catch let err as FeedbackReporter.SubmitError {
-            NonFatalLog.record(err, category: "issue_report_submit")
+            NonFatalLog.record(err.loggableUnderlyingError(), category: "issue_report_submit")
             inlineMessage = err.errorDescription ?? err.localizedDescription
             inlineDetail = err.sheetDetail ?? ""
         } catch {
             NonFatalLog.record(error, category: "issue_report_submit")
-            inlineMessage = error.localizedDescription
+            inlineMessage = IssueReportL10n.errorSubmitFailed
             inlineDetail = ""
         }
     }

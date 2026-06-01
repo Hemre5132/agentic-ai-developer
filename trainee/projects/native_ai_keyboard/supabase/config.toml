@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.transform]
 verify_jwt = false
+
+[functions.submit-issue-report]
+verify_jwt = false

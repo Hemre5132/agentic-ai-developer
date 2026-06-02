@@ -15,6 +15,9 @@
 "settings.legal.privacy" = "Gizlilik Politikası";
 "settings.legal.terms" = "Kullanım Koşulları";
 "settings.legal.support" = "Destek";
+"settings.legal.link.privacy" = "Gizlilik";
+"settings.legal.link.terms" = "Koşullar";
+"settings.legal.link.support" = "Destek";
 "action.done" = "Tamam";
 "action.cancel" = "Vazgeç";
 

@@ -15,6 +15,9 @@
 "settings.legal.privacy" = "Privacy Policy";
 "settings.legal.terms" = "Terms of Use";
 "settings.legal.support" = "Support";
+"settings.legal.link.privacy" = "Privacy";
+"settings.legal.link.terms" = "Terms";
+"settings.legal.link.support" = "Support";
 "action.done" = "Done";
 "action.cancel" = "Cancel";
 

@@ -4,20 +4,19 @@ import WebKit
 
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Bindable private var accessMonitor = KeyboardAccessMonitor.shared
 
     @State private var style: ConversationStyle = AppGroupStore.shared.conversationStyle
-    @State private var appearance: KeyboardAppearancePreference = AppGroupStore.shared.keyboardAppearancePreference
     @State private var chromeAccent: KeyboardChromeAccent = AppGroupStore.shared.keyboardChromeAccent
     @State private var aiPreviewBeforeApply: Bool = AppGroupStore.shared.aiPreviewBeforeApply
     @State private var showReportProblem = false
-    @State private var showFullAccessPrompt = false
-    @State private var fullAccessPromptSuppressedThisSession = false
-    @State private var settingsObserver: AppGroupSettingsObserverToken?
     @State private var legalWebURL: URL?
 
     var body: some View {
         NavigationStack {
             Form {
+                keyboardSetupSection
+
                 Section {
                     Picker(String(localized: "settings.conversation_style"), selection: $style) {
                         ForEach(ConversationStyle.allCases) { s in
@@ -32,14 +31,6 @@ struct ContentView: View {
                         .onChange(of: aiPreviewBeforeApply) { _, new in
                             AppGroupStore.shared.aiPreviewBeforeApply = new
                         }
-                    Picker(String(localized: "appearance.section_title"), selection: $appearance) {
-                        ForEach(KeyboardAppearancePreference.allCases) { p in
-                            Text(LocalizedStringKey(p.localizationKey)).tag(p)
-                        }
-                    }
-                    .onChange(of: appearance) { _, new in
-                        AppGroupStore.shared.keyboardAppearancePreference = new
-                    }
                     Picker(String(localized: "accent.section_title"), selection: $chromeAccent) {
                         ForEach(KeyboardChromeAccent.allCases) { a in
                             Text(LocalizedStringKey(a.localizationKey)).tag(a)
@@ -78,24 +69,20 @@ struct ContentView: View {
                 }
             }
             .onAppear {
+                accessMonitor.startIfNeeded()
                 AppGroupStore.shared.purgeLegacyKeyboardUIRegionIfPresent()
                 AppGroupStore.shared.syncHostAppLanguageToKeyboard()
                 aiPreviewBeforeApply = AppGroupStore.shared.aiPreviewBeforeApply
-                appearance = AppGroupStore.shared.keyboardAppearancePreference
                 chromeAccent = AppGroupStore.shared.keyboardChromeAccent
-                settingsObserver = AppGroupSettingsNotifier.observe {
-                    refreshFullAccessPrompt()
-                }
-                refreshFullAccessPrompt()
             }
             .onChange(of: scenePhase) { phase in
                 guard phase == .active else { return }
                 AppGroupStore.shared.syncHostAppLanguageToKeyboard()
-                refreshFullAccessPrompt()
+                accessMonitor.refresh()
             }
             .task {
                 await bootstrapOnLaunch()
-                refreshFullAccessPrompt()
+                accessMonitor.refresh()
             }
             .onOpenURL { handleDeepLink($0) }
             .onReceive(NotificationCenter.default.publisher(for: .aiKeyboardOpenURL)) { note in
@@ -103,18 +90,8 @@ struct ContentView: View {
                     handleDeepLink(url)
                 }
             }
-            .alert(
-                String(localized: "onboarding.full_access.title"),
-                isPresented: $showFullAccessPrompt
-            ) {
-                Button(String(localized: "onboarding.full_access.allow")) {
-                    openSystemSettings()
-                }
-                Button(String(localized: "onboarding.full_access.dont_allow"), role: .cancel) {
-                    suppressFullAccessPromptForSession()
-                }
-            } message: {
-                Text(String(localized: "onboarding.full_access.message"))
+            .fullScreenCover(isPresented: fullAccessGateBinding) {
+                FullAccessRequiredView(monitor: accessMonitor)
             }
             .sheet(isPresented: $showReportProblem) {
                 ReportProblemSheet()
@@ -130,13 +107,56 @@ struct ContentView: View {
         }
     }
 
+    private var fullAccessGateBinding: Binding<Bool> {
+        Binding(
+            get: { accessMonitor.needsFullAccessGate },
+            set: { _ in }
+        )
+    }
+
+    @ViewBuilder
+    private var keyboardSetupSection: some View {
+        Section {
+            LabeledContent(
+                String(localized: "settings.keyboard_setup.section"),
+                value: accessMonitor.status.keyboardDetected
+                    ? String(localized: "settings.keyboard_setup.detected_yes")
+                    : String(localized: "settings.keyboard_setup.detected_no")
+            )
+            LabeledContent(
+                String(localized: "settings.keyboard_setup.full_access_label"),
+                value: String(localized: String.LocalizationValue(accessMonitor.fullAccessStatusKey))
+            )
+            Button(String(localized: "settings.keyboard_setup.refresh")) {
+                accessMonitor.refresh()
+            }
+        } header: {
+            Text(String(localized: "settings.keyboard_setup.section"))
+        } footer: {
+            Text(keyboardSetupFooterKey)
+        }
+    }
+
+    private var keyboardSetupFooterKey: LocalizedStringKey {
+        if !accessMonitor.status.appGroupAvailable {
+            return LocalizedStringKey("settings.keyboard_setup.footer_app_group")
+        }
+        if !accessMonitor.status.keyboardDetected {
+            return LocalizedStringKey("settings.keyboard_setup.footer_not_used")
+        }
+        if accessMonitor.status.fullAccessOn {
+            return LocalizedStringKey("settings.keyboard_setup.footer_ready")
+        }
+        return LocalizedStringKey("settings.keyboard_setup.footer_need_full_access")
+    }
+
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "aikeyboard" else { return }
         switch url.host {
         case "refresh", "settings":
             Task {
                 await bootstrapOnLaunch()
-                refreshFullAccessPrompt()
+                accessMonitor.refresh()
             }
         default:
             break
@@ -146,32 +166,9 @@ struct ContentView: View {
     /// Registers the device with Supabase and refreshes session snapshot without surfacing a “Connection” UI.
     private func bootstrapOnLaunch() async {
         HostSupabaseConfigSync.pushToAppGroupIfNeeded()
+        AIWritingLocale.syncFromDevice()
         try? await SupabaseDeviceAPI.registerIfNeeded()
         await AccountSync.syncAll()
-    }
-
-    private func refreshFullAccessPrompt() {
-        if KeyboardStatusService.resolve().fullAccessOn {
-            showFullAccessPrompt = false
-            return
-        }
-        let shouldShow = KeyboardStatusService.shouldPromptForFullAccess()
-        if !shouldShow {
-            showFullAccessPrompt = false
-            return
-        }
-        guard !fullAccessPromptSuppressedThisSession else { return }
-        showFullAccessPrompt = true
-    }
-
-    private func suppressFullAccessPromptForSession() {
-        fullAccessPromptSuppressedThisSession = true
-        showFullAccessPrompt = false
-    }
-
-    private func openSystemSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        UIApplication.shared.open(url)
     }
 
     private func closeAppToBackground() {

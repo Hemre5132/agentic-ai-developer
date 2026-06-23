@@ -15,8 +15,6 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             Form {
-                keyboardSetupSection
-
                 Section {
                     Picker(String(localized: "settings.conversation_style"), selection: $style) {
                         ForEach(ConversationStyle.allCases) { s in
@@ -50,7 +48,6 @@ struct ContentView: View {
                         Text(IssueReportL10n.openReport)
                     }
                 }
-
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 LegalFooterLinks { legalWebURL = $0 }
@@ -61,12 +58,20 @@ struct ContentView: View {
                     .background(.bar)
             }
             .navigationTitle(Text("app.title", bundle: .main))
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .topBarLeading) {
+                    BrandMarkImage(height: 26)
+                }
+                .hideToolbarItemBackgroundIfAvailable()
+
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(String(localized: "action.done")) {
                         closeAppToBackground()
                     }
+                    .buttonStyle(.plain)
                 }
+                .hideToolbarItemBackgroundIfAvailable()
             }
             .onAppear {
                 accessMonitor.startIfNeeded()
@@ -114,42 +119,6 @@ struct ContentView: View {
         )
     }
 
-    @ViewBuilder
-    private var keyboardSetupSection: some View {
-        Section {
-            LabeledContent(
-                String(localized: "settings.keyboard_setup.section"),
-                value: accessMonitor.status.keyboardDetected
-                    ? String(localized: "settings.keyboard_setup.detected_yes")
-                    : String(localized: "settings.keyboard_setup.detected_no")
-            )
-            LabeledContent(
-                String(localized: "settings.keyboard_setup.full_access_label"),
-                value: String(localized: String.LocalizationValue(accessMonitor.fullAccessStatusKey))
-            )
-            Button(String(localized: "settings.keyboard_setup.refresh")) {
-                accessMonitor.refresh()
-            }
-        } header: {
-            Text(String(localized: "settings.keyboard_setup.section"))
-        } footer: {
-            Text(keyboardSetupFooterKey)
-        }
-    }
-
-    private var keyboardSetupFooterKey: LocalizedStringKey {
-        if !accessMonitor.status.appGroupAvailable {
-            return LocalizedStringKey("settings.keyboard_setup.footer_app_group")
-        }
-        if !accessMonitor.status.keyboardDetected {
-            return LocalizedStringKey("settings.keyboard_setup.footer_not_used")
-        }
-        if accessMonitor.status.fullAccessOn {
-            return LocalizedStringKey("settings.keyboard_setup.footer_ready")
-        }
-        return LocalizedStringKey("settings.keyboard_setup.footer_need_full_access")
-    }
-
     private func handleDeepLink(_ url: URL) {
         guard url.scheme == "aikeyboard" else { return }
         switch url.host {
@@ -175,6 +144,19 @@ struct ContentView: View {
         UIApplication.shared.perform(#selector(NSXPCConnection.suspend))
     }
 
+}
+
+// MARK: - Toolbar (iOS 26 liquid glass)
+
+private extension ToolbarContent {
+    @ToolbarContentBuilder
+    func hideToolbarItemBackgroundIfAvailable() -> some ToolbarContent {
+        if #available(iOS 26.0, *) {
+            sharedBackgroundVisibility(.hidden)
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Legal footer & in-app WebView

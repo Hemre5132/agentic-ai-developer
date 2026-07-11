@@ -19,20 +19,27 @@ enum KeyboardExtensionL10n {
         return key
     }
 
+    /// Never returns raw/technical server text — only localized, user-safe messages.
     static func userFacingError(_ error: Error) -> String {
         if let rewrite = error as? RewriteAPIError {
-            return rewrite.localizedMessage
+            return sanitizeUserMessage(rewrite.localizedMessage)
         }
         if let reg = error as? SupabaseDeviceAPI.RegisterError {
-            return reg.localizedMessage
+            return sanitizeUserMessage(reg.localizedMessage)
         }
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain || error is URLError {
             return string("keyboard.error.network")
         }
-        let desc = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
-        if desc.isEmpty { return string("keyboard.error.generic") }
-        return desc
+        return string("keyboard.error.generic")
+    }
+
+    /// Last-line defense: long/unexpected text collapses to the generic localized message.
+    static func sanitizeUserMessage(_ message: String) -> String {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return string("keyboard.error.generic") }
+        if trimmed.count > 120 { return string("keyboard.error.generic") }
+        return trimmed
     }
 }
 
@@ -48,9 +55,12 @@ extension RewriteAPIError {
             if code == 404 {
                 return KeyboardExtensionL10n.string("keyboard.error.api_not_found")
             }
-            if code == -1, let body, !body.isEmpty { return body }
+            // `body` is only set to pre-localized safe strings by RewriteAPI.
             if let body, !body.isEmpty { return body }
-            return String(format: KeyboardExtensionL10n.string("keyboard.error.server_status"), code)
+            if code == -1 {
+                return KeyboardExtensionL10n.string("keyboard.error.network")
+            }
+            return KeyboardExtensionL10n.string("keyboard.error.generic")
         }
     }
 }
@@ -60,11 +70,10 @@ extension SupabaseDeviceAPI.RegisterError {
         switch self {
         case .missingSupabaseURL:
             return KeyboardExtensionL10n.string("keyboard.error.supabase_url_missing")
-        case let .badResponse(code, body):
+        case let .badResponse(code, _):
             if code == -1 {
                 return KeyboardExtensionL10n.string("keyboard.error.network")
             }
-            if let body, !body.isEmpty { return body }
             return String(format: KeyboardExtensionL10n.string("keyboard.error.register_failed"), code)
         }
     }

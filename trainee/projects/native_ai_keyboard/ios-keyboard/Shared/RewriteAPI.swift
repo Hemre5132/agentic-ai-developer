@@ -28,6 +28,12 @@ enum RewriteAPI {
     }
 
     private static func userFacingServerMessage(status: Int, data: Data) -> String {
+        let rawSnippet = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+        NonFatalLog.breadcrumb(
+            "transform_http status=\(status) body=\(rawSnippet)",
+            category: "rewrite_api"
+        )
+
         if let env = try? JSONDecoder().decode(ErrorEnvelope.self, from: data), let e = env.error {
             switch e.code {
             case "gemini_not_configured":
@@ -40,25 +46,17 @@ enum RewriteAPI {
                 return KeyboardExtensionL10n.string("keyboard.error.gemini_quota")
             case "gemini_model":
                 return KeyboardExtensionL10n.string("keyboard.error.gemini_model")
-            case "gemini_bad_request", "gemini_upstream", "gemini_connection":
-                if let m = e.message, !m.isEmpty {
-                    return String(format: KeyboardExtensionL10n.string("keyboard.error.gemini_detail"), m)
-                }
+            case "gemini_bad_request", "gemini_upstream", "gemini_connection", "gemini_detail":
                 return KeyboardExtensionL10n.string("keyboard.error.gemini_failed")
             case "UNAUTHORIZED", "invalid_token":
                 return KeyboardExtensionL10n.string("keyboard.error.unauthorized")
             case "payment_required":
                 return KeyboardExtensionL10n.string("keyboard.error.payment_required")
             default:
-                if let m = e.message, !m.isEmpty {
-                    return String(format: KeyboardExtensionL10n.string("keyboard.error.server_with_message"), status, m)
-                }
+                break
             }
         }
-        if let raw = String(data: data, encoding: .utf8), !raw.isEmpty {
-            return String(format: KeyboardExtensionL10n.string("keyboard.error.server_with_message"), status, raw)
-        }
-        return String(format: KeyboardExtensionL10n.string("keyboard.error.server_status"), status)
+        return KeyboardExtensionL10n.string("keyboard.error.generic")
     }
 
     private static func apiMode(for style: ConversationStyle) -> String {
@@ -83,6 +81,7 @@ enum RewriteAPI {
         text: String,
         mode: RewriteMode,
         style: ConversationStyle,
+        previousOutput: String? = nil,
     ) async throws -> String {
         try await SupabaseDeviceAPI.registerIfNeeded()
         guard let url = AppConfig.supabaseTransformURL() else {
@@ -111,6 +110,7 @@ enum RewriteAPI {
             let theme: String
             let style: String
             let deviceLocales: String
+            let previousOutput: String?
         }
 
         guard let action = mapAction(mode) else {
@@ -125,6 +125,7 @@ enum RewriteAPI {
             theme: themeRaw,
             style: style.rawValue,
             deviceLocales: deviceLocales,
+            previousOutput: previousOutput.flatMap { $0.isEmpty ? nil : $0 }
         )
         req.httpBody = try JSONEncoder().encode(body)
 
@@ -214,10 +215,20 @@ enum RewriteAPI {
         return error
     }
 
-    static func rewrite(text: String, mode: RewriteMode, style: ConversationStyle) async throws -> String {
+    static func rewrite(
+        text: String,
+        mode: RewriteMode,
+        style: ConversationStyle,
+        previousOutput: String? = nil
+    ) async throws -> String {
         do {
             if AppConfig.usesSupabaseTransform {
-                return try await supabaseTransform(text: text, mode: mode, style: style)
+                return try await supabaseTransform(
+                    text: text,
+                    mode: mode,
+                    style: style,
+                    previousOutput: previousOutput
+                )
             }
             return try await legacyNodeRewrite(text: text, mode: mode, style: style)
         } catch let rewrite as RewriteAPIError {

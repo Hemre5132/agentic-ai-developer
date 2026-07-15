@@ -1,3 +1,5 @@
+![Go Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8y6.jpg)
+
 ### 🚀 Go Developer Roadmap: Day 1 to Day 100 (Foundational Skills to Professional Competence)
 
 | Day | Focus Area | Content Details | Goal (From Foundation to Professional) |

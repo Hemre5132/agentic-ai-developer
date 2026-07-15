@@ -1,3 +1,5 @@
+![Git Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8yo.jpg)
+
 ### 🚀 Git Learning Roadmap: 16 Common Scenarios
 
 | Scenario | Focus Area | Description | Goal |

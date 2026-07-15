@@ -1,5 +1,20 @@
 # Welcome to the MasterFabric Academy
 
+<p align="center">
+  <img src="https://i.wpfc.ml/jv/ylp8zk.jpg" alt="Next.js" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8yl.jpg" alt="NestJS" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8y6.jpg" alt="Go" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8xq.png" alt="TypeScript" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8yw.png" alt="GraphQL" width="19%" />
+</p>
+<p align="center">
+  <img src="https://i.wpfc.ml/jv/ylp8xm.jpg" alt="AI Agents" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8ym.jpg" alt="Flutter" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8zi.jpg" alt="Expo" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8qr.jpg" alt="DevOps" width="19%" />
+  <img src="https://i.wpfc.ml/jv/ylp8yo.jpg" alt="Git" width="19%" />
+</p>
+
 We are thrilled to have you join us! This guide is your starting point for becoming a contributor and learner with the MasterFabric Academy, our non-profit, open-source educational initiative.
 
 ## Our Mission

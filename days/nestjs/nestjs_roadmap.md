@@ -1,3 +1,5 @@
+![NestJS Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8yl.jpg)
+
 ### 🚀 NestJS Developer Roadmap: Day 1 to Day 100 (Foundational Skills to Expert Mastery)
 
 | Day | Focus Area | Content Details | Goal (From Foundation to Professional) |

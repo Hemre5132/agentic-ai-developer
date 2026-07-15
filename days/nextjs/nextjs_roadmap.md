@@ -1,3 +1,5 @@
+![Next.js Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8zk.jpg)
+
 ### 🚀 Next.js Developer Roadmap: Day 1 to Day 100
 
 | Day | Focus Area | Content Details | Goal (From Foundation to Professional) |

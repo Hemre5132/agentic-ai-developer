@@ -27,6 +27,27 @@ Quick overview of the available tracks. Open a roadmap for the full curriculum a
 | Git | 16 days | ![Git](https://img.shields.io/badge/Git-F05032?logo=git&logoColor=white) | [`/days/git/git_roadmap.md`](./days/git/git_roadmap.md) |
 | AI Agents | 100 days | ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white) | [`/days/ai-agents/ai-agents_roadmap.md`](./days/ai-agents/ai-agents_roadmap.md) |
 
+### Track covers
+
+<p align="center">
+  <a href="./days/flutter/flutter_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8ym.jpg" alt="Flutter" width="32%" /></a>
+  <a href="./days/expo/expo_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8zi.jpg" alt="Expo" width="32%" /></a>
+  <a href="./days/devops/devops_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8qr.jpg" alt="DevOps" width="32%" /></a>
+</p>
+<p align="center">
+  <a href="./days/nestjs/nestjs_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8yl.jpg" alt="NestJS" width="32%" /></a>
+  <a href="./days/nextjs/nextjs_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8zk.jpg" alt="Next.js" width="32%" /></a>
+  <a href="./days/go/go_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8y6.jpg" alt="Go" width="32%" /></a>
+</p>
+<p align="center">
+  <a href="./days/typescript/typescript_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8xq.png" alt="TypeScript" width="32%" /></a>
+  <a href="./days/graphql/graphql_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8yw.png" alt="GraphQL" width="32%" /></a>
+  <a href="./days/ai-agents/ai-agents_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8xm.jpg" alt="AI Agents" width="32%" /></a>
+</p>
+<p align="center">
+  <a href="./days/git/git_roadmap.md"><img src="https://i.wpfc.ml/jv/ylp8yo.jpg" alt="Git" width="32%" /></a>
+</p>
+
 ## Quick navigation
 
 - **Start here**

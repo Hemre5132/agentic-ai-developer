@@ -1,3 +1,5 @@
+![AI-Agents Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8xm.jpg)
+
 ### 🚀 AI Agents Developer Roadmap: Day 1 to Day 100 (Foundational Skills to Expert Mastery)
 
 | Day | Focus Area | Content Details | Goal (From Foundation to Professional) |

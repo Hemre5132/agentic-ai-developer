@@ -1,3 +1,5 @@
+![TypeScript Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8xq.png)
+
 ### 🚀 TypeScript Developer Roadmap: Day 1 to Day 100 (Foundational Skills to Professional Competence)
 
 | Day | Focus Area | Content Details | Goal (From Foundation to Professional) |

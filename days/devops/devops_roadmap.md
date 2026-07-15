@@ -1,3 +1,5 @@
+![DevOps Training — MasterFabric Academy](https://i.wpfc.ml/jv/ylp8qr.jpg)
+
 # 🚀 DevOps Developer Roadmap: Day 1 to Day 100
 
 This roadmap provides a comprehensive 100-day plan to master DevOps from foundation to professional level.

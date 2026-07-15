@@ -32,26 +32,8 @@ struct KeyboardActionService {
         )
     }
 
+    /// Always reads the entire text field — selection is ignored for AI requests.
     func readRewriteContextFromProxy() -> (text: String, snapshot: RewriteSnapshot) {
-        if let input = proxy as? UITextInput,
-           let selected = input.selectedTextRange,
-           input.offset(from: selected.start, to: selected.end) > 0,
-           let selectedText = input.text(in: selected),
-           !selectedText.isEmpty
-        {
-            return (
-                selectedText,
-                RewriteSnapshot(usesSelection: true, utf16Before: 0, utf16After: 0, replaceWholeDocumentPreferred: false)
-            )
-        }
-
-        if let sel = proxy.selectedText, !sel.isEmpty {
-            return (
-                sel,
-                RewriteSnapshot(usesSelection: true, utf16Before: 0, utf16After: 0, replaceWholeDocumentPreferred: false)
-            )
-        }
-
         let before = proxy.documentContextBeforeInput ?? ""
         let after = proxy.documentContextAfterInput ?? ""
         let split = before + after
@@ -109,32 +91,13 @@ struct KeyboardActionService {
     }
 
     func applyRewrite(result: String, snapshot: RewriteSnapshot) {
-        if snapshot.usesSelection {
-            if let input = proxy as? UITextInput,
-               let selected = input.selectedTextRange,
-               input.offset(from: selected.start, to: selected.end) != 0
-            {
-                input.replace(selected, withText: result)
-                return
-            }
-        } else if let input = proxy as? UITextInput {
+        if let input = proxy as? UITextInput {
             let start = input.beginningOfDocument
             let end = input.endOfDocument
             if let range = input.textRange(from: start, to: end) {
                 input.replace(range, withText: result)
                 return
             }
-        }
-
-        if snapshot.usesSelection {
-            let len = KeyboardTextReplacement.utf16Length(proxy.selectedText ?? "")
-            if len > 0 {
-                for _ in 0 ..< len { proxy.deleteBackward() }
-                proxy.insertText(result)
-            } else {
-                proxy.insertText(result)
-            }
-            return
         }
 
         for _ in 0 ..< snapshot.utf16Before { proxy.deleteBackward() }

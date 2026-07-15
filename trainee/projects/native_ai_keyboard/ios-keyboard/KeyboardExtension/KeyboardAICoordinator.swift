@@ -9,6 +9,11 @@ final class KeyboardAICoordinator {
     let previewZone = KeyboardPreviewOverlayView()
 
     private var pendingRewriteFromTouchDown: (text: String, snapshot: RewriteSnapshot)?
+    /// Mode + source text that produced the current preview (updated on bar chain; stable on regenerate).
+    private var lastTransform: (mode: RewriteMode, text: String, snapshot: RewriteSnapshot)?
+    /// Field snapshot to apply Confirm against — kept across chained bar presses while dialog is open.
+    private var applySnapshot: RewriteSnapshot?
+    private var isTransformInFlight = false
     private var previewHeightConstraint: NSLayoutConstraint?
     private var statusHeightConstraint: NSLayoutConstraint?
     private var toolbarHeightConstraint: NSLayoutConstraint?
@@ -55,18 +60,24 @@ final class KeyboardAICoordinator {
         sessionPollTimer?.invalidate()
         let timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.refreshOpenAppButton()
+            self?.syncScrollHapticsAccess()
         }
         RunLoop.main.add(timer, forMode: .common)
         sessionPollTimer = timer
         refreshOpenAppButton()
         syncFromAppGroup()
         refreshActionAvailability()
+        syncScrollHapticsAccess()
     }
 
     func stopObserving() {
         sessionPollTimer?.invalidate()
         sessionPollTimer = nil
         settingsObserver = nil
+    }
+
+    private func syncScrollHapticsAccess() {
+        toolbar.aiBar.allowsScrollHaptics = controller?.hasFullAccess ?? false
     }
 
     // MARK: - Appearance
@@ -83,14 +94,16 @@ final class KeyboardAICoordinator {
     func refreshActionButtonChrome(isDark: Bool) {
         lastChromeIsDark = isDark
         let accent = AppGroupStore.shared.keyboardChromeAccent.uiColor
+        let fill = accent.withAlphaComponent(isDark ? 0.16 : 0.10)
+        let stroke = accent.withAlphaComponent(isDark ? 0.45 : 0.32)
 
         for button in toolbar.actionsRow.arrangedSubviews.compactMap({ $0 as? UIButton }) {
             guard var cfg = button.configuration else { continue }
             cfg.baseForegroundColor = accent
-            cfg.background.backgroundColor = .clear
-            cfg.background.cornerRadius = 0
-            cfg.background.strokeWidth = 0
-            cfg.background.strokeColor = nil
+            cfg.background.backgroundColor = fill
+            cfg.background.cornerRadius = 16
+            cfg.background.strokeWidth = 1
+            cfg.background.strokeColor = stroke
             button.configuration = cfg
             button.backgroundColor = .clear
         }
@@ -146,7 +159,21 @@ final class KeyboardAICoordinator {
 
         if var ac = previewZone.applyButton.configuration {
             ac.baseBackgroundColor = accent
+            ac.cornerStyle = .fixed
+            ac.background.cornerRadius = keyCornerRadius
             previewZone.applyButton.configuration = ac
+        }
+        let radius = keyCornerRadius
+        let isDarkForIcons = lastChromeIsDark ?? (toolbar.traitCollection.userInterfaceStyle == .dark)
+        let iconFill = accent.withAlphaComponent(isDarkForIcons ? 0.16 : 0.10)
+        let iconStroke = accent.withAlphaComponent(isDarkForIcons ? 0.40 : 0.28)
+        for button in [previewZone.closeButton, previewZone.copyButton, previewZone.regenerateButton] {
+            guard var cfg = button.configuration else { continue }
+            cfg.baseForegroundColor = accent
+            cfg.background.backgroundColor = iconFill
+            cfg.background.strokeColor = iconStroke
+            cfg.background.cornerRadius = radius
+            button.configuration = cfg
         }
 
         let accentColor = accent
@@ -161,6 +188,12 @@ final class KeyboardAICoordinator {
 
     func fitToolbar(height: CGFloat) {
         toolbarHeightConstraint?.constant = height
+    }
+
+    /// Matches letter-key corner radius from `AppleKeyboardMetrics` (~4–6 pt).
+    private var keyCornerRadius: CGFloat {
+        let width = controller?.view.bounds.width ?? UIScreen.main.bounds.width
+        return AppleKeyboardMetrics.resolve(width: max(320, width)).cornerRadius
     }
 
     // MARK: - Localization
@@ -184,48 +217,56 @@ final class KeyboardAICoordinator {
 
     private func buildAIActions() {
         let items: [(String, String, RewriteMode)] = [
-            ("checkmark.circle", "keyboard.action_grammar", .proofread),
-            ("arrow.up.circle", "keyboard.action_improve", .rewrite),
-            ("arrow.down.right.and.arrow.up.left", "keyboard.action_shorten", .shorten),
-            ("arrow.up.left.and.arrow.down.right", "keyboard.action_expand", .expand),
+            ("checkmark.seal", "keyboard.action_grammar", .proofread),
+            ("wand.and.stars", "keyboard.action_improve", .rewrite),
+            ("arrow.down.forward.and.arrow.up.backward", "keyboard.action_shorten", .shorten),
+            ("arrow.up.backward.and.arrow.down.forward", "keyboard.action_expand", .expand),
         ]
         for (symbol, key, mode) in items {
             let button = makeActionButton(symbol: symbol, titleKey: key)
             button.addAction(UIAction { [weak self] _ in self?.runTransform(mode: mode) }, for: .touchUpInside)
             toolbar.actionsRow.addArrangedSubview(button)
         }
+        toolbar.aiBar.setNeedsLayout()
     }
 
     private func makeActionButton(symbol: String, titleKey: String) -> UIButton {
         var cfg = UIButton.Configuration.plain()
         cfg.image = symbolImage(symbol)
         cfg.title = localize(titleKey)
-        cfg.imagePlacement = .top
-        cfg.imagePadding = 4
+        cfg.imagePlacement = .leading
+        cfg.imagePadding = 5
         cfg.titleLineBreakMode = .byTruncatingTail
-        cfg.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 8, bottom: 4, trailing: 8)
+        cfg.contentInsets = NSDirectionalEdgeInsets(top: 7, leading: 12, bottom: 7, trailing: 12)
+        cfg.background.cornerRadius = 16
+        cfg.background.strokeWidth = 1
         cfg.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var out = incoming
-            out.font = .systemFont(ofSize: 11, weight: .semibold)
+            out.font = .systemFont(ofSize: 13, weight: .semibold)
             return out
         }
         let button = UIButton(configuration: cfg)
         button.setContentCompressionResistancePriority(.required, for: .vertical)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        button.setContentCompressionResistancePriority(.required, for: .horizontal)
         button.addTarget(self, action: #selector(rewriteTouchDown), for: .touchDown)
         button.addTarget(self, action: #selector(rewriteTouchCancel), for: [.touchUpOutside, .touchCancel])
         return button
     }
 
-    private func symbolImage(_ name: String) -> UIImage {
+    private func symbolImage(_ name: String, pointSize: CGFloat = 14) -> UIImage {
         let fallback: String = switch name {
-        case "checkmark.circle": "✓"
-        case "textformat.abc": "G"
-        case "arrow.up.circle": "I"
-        case "arrow.down.right.and.arrow.up.left": "S"
-        case "arrow.up.left.and.arrow.down.right": "X"
+        case "checkmark.seal": "✓"
+        case "wand.and.stars": "✦"
+        case "arrow.down.forward.and.arrow.up.backward": "S"
+        case "arrow.up.backward.and.arrow.down.forward": "X"
+        case "doc.on.doc": "C"
+        case "arrow.clockwise": "R"
+        case "xmark.circle.fill", "xmark": "×"
+        case "slider.horizontal.3": "≡"
         default: "•"
         }
-        let cfg = UIImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        let cfg = UIImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
         if let img = UIImage(systemName: name, withConfiguration: cfg) {
             return img.withRenderingMode(.alwaysTemplate)
         }
@@ -243,10 +284,10 @@ final class KeyboardAICoordinator {
 
     private func refreshActionTitles() {
         let items: [(String, String)] = [
-            ("checkmark.circle", "keyboard.action_grammar"),
-            ("arrow.up.circle", "keyboard.action_improve"),
-            ("arrow.down.right.and.arrow.up.left", "keyboard.action_shorten"),
-            ("arrow.up.left.and.arrow.down.right", "keyboard.action_expand"),
+            ("checkmark.seal", "keyboard.action_grammar"),
+            ("wand.and.stars", "keyboard.action_improve"),
+            ("arrow.down.forward.and.arrow.up.backward", "keyboard.action_shorten"),
+            ("arrow.up.backward.and.arrow.down.forward", "keyboard.action_expand"),
         ]
         let buttons = toolbar.actionsRow.arrangedSubviews.compactMap { $0 as? UIButton }
         for (i, button) in buttons.enumerated() where i < items.count {
@@ -256,9 +297,9 @@ final class KeyboardAICoordinator {
             button.configuration = cfg
         }
         previewZone.titleLabel.text = localize("keyboard.result_preview_title")
-        var discard = previewZone.discardButton.configuration
-        discard?.title = localize("keyboard.discard_result")
-        previewZone.discardButton.configuration = discard
+        previewZone.closeButton.accessibilityLabel = localize("keyboard.close_preview")
+        previewZone.copyButton.accessibilityLabel = localize("keyboard.copy_result")
+        previewZone.regenerateButton.accessibilityLabel = localize("keyboard.regenerate_result")
         var apply = previewZone.applyButton.configuration
         apply?.title = localize("keyboard.apply_result")
         previewZone.applyButton.configuration = apply
@@ -266,8 +307,8 @@ final class KeyboardAICoordinator {
 
     private func buildToolbarChrome() {
         let settings = UIButton(type: .system)
-        let sym = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
-        settings.setImage(UIImage(systemName: "gearshape", withConfiguration: sym), for: .normal)
+        let sym = UIImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+        settings.setImage(UIImage(systemName: "slider.horizontal.3", withConfiguration: sym), for: .normal)
         settings.tintColor = AppGroupStore.shared.keyboardChromeAccent.uiColor
         settings.contentEdgeInsets = UIEdgeInsets(top: 4, left: 4, bottom: 4, right: 0)
         settings.accessibilityLabel = localize("keyboard.chrome_more_accessibility")
@@ -306,30 +347,65 @@ final class KeyboardAICoordinator {
             outer.bottomAnchor.constraint(equalTo: previewZone.bottomAnchor, constant: -10),
         ])
 
+        let titleRow = UIStackView()
+        titleRow.axis = .horizontal
+        titleRow.alignment = .center
+        titleRow.spacing = 8
         previewZone.titleLabel.text = localize("keyboard.result_preview_title")
+        previewZone.titleLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        let radius = keyCornerRadius
+        let isDark = lastChromeIsDark ?? (toolbar.traitCollection.userInterfaceStyle == .dark)
+        let accent = AppGroupStore.shared.keyboardChromeAccent.uiColor
+        let iconFill = accent.withAlphaComponent(isDark ? 0.16 : 0.10)
+        let iconStroke = accent.withAlphaComponent(isDark ? 0.40 : 0.28)
+
+        func makeIconButton(symbol: String) -> UIButton.Configuration {
+            var cfg = UIButton.Configuration.plain()
+            cfg.image = symbolImage(symbol, pointSize: 11)
+            cfg.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 8, bottom: 5, trailing: 8)
+            cfg.baseForegroundColor = accent
+            cfg.background.backgroundColor = iconFill
+            cfg.background.cornerRadius = radius
+            cfg.background.strokeWidth = 1
+            cfg.background.strokeColor = iconStroke
+            return cfg
+        }
+
+        previewZone.closeButton.configuration = makeIconButton(symbol: "xmark")
+        previewZone.closeButton.accessibilityLabel = localize("keyboard.close_preview")
+        previewZone.closeButton.addAction(UIAction { [weak self] _ in self?.hidePreview() }, for: .touchUpInside)
+        previewZone.closeButton.setContentHuggingPriority(.required, for: .horizontal)
+
+        titleRow.addArrangedSubview(previewZone.titleLabel)
+        titleRow.addArrangedSubview(previewZone.closeButton)
+
         previewZone.textView.isScrollEnabled = true
         previewZone.textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
-        previewZone.textView.layer.cornerRadius = 10
+        previewZone.textView.layer.cornerRadius = radius
         previewZone.textView.clipsToBounds = true
         previewZone.textView.heightAnchor.constraint(greaterThanOrEqualToConstant: 72).isActive = true
 
-        var discard = UIButton.Configuration.bordered()
-        discard.title = localize("keyboard.discard_result")
-        discard.cornerStyle = .capsule
-        discard.buttonSize = .small
-        previewZone.discardButton.configuration = discard
-        previewZone.discardButton.addAction(UIAction { [weak self] _ in self?.hidePreview() }, for: .touchUpInside)
+        previewZone.copyButton.configuration = makeIconButton(symbol: "doc.on.doc")
+        previewZone.copyButton.accessibilityLabel = localize("keyboard.copy_result")
+        previewZone.copyButton.addAction(UIAction { [weak self] _ in self?.copyPreviewText() }, for: .touchUpInside)
+
+        previewZone.regenerateButton.configuration = makeIconButton(symbol: "arrow.clockwise")
+        previewZone.regenerateButton.accessibilityLabel = localize("keyboard.regenerate_result")
+        previewZone.regenerateButton.addAction(UIAction { [weak self] _ in self?.regeneratePreview() }, for: .touchUpInside)
 
         var apply = UIButton.Configuration.filled()
         apply.title = localize("keyboard.apply_result")
-        apply.cornerStyle = .capsule
+        apply.cornerStyle = .fixed
+        apply.background.cornerRadius = radius
         apply.buttonSize = .small
-        apply.baseBackgroundColor = AppGroupStore.shared.keyboardChromeAccent.uiColor
+        apply.baseBackgroundColor = accent
         apply.baseForegroundColor = .white
         previewZone.applyButton.configuration = apply
         previewZone.applyButton.addAction(UIAction { [weak self] _ in self?.applyPreview() }, for: .touchUpInside)
+        previewZone.applyButton.setContentHuggingPriority(.required, for: .horizontal)
 
-        outer.addArrangedSubview(previewZone.titleLabel)
+        outer.addArrangedSubview(titleRow)
         outer.addArrangedSubview(previewZone.textView)
         outer.addArrangedSubview(previewZone.buttonRow)
     }
@@ -340,6 +416,27 @@ final class KeyboardAICoordinator {
         previewZone.titleLabel.textColor = palette.primaryText
         previewZone.textView.backgroundColor = palette.previewField
         previewZone.textView.textColor = palette.primaryText
+
+        let radius = keyCornerRadius
+        previewZone.textView.layer.cornerRadius = radius
+
+        let accent = AppGroupStore.shared.keyboardChromeAccent.uiColor
+        let iconFill = accent.withAlphaComponent(isDark ? 0.16 : 0.10)
+        let iconStroke = accent.withAlphaComponent(isDark ? 0.40 : 0.28)
+        for button in [previewZone.closeButton, previewZone.copyButton, previewZone.regenerateButton] {
+            guard var cfg = button.configuration else { continue }
+            cfg.background.backgroundColor = iconFill
+            cfg.background.strokeColor = iconStroke
+            cfg.background.cornerRadius = radius
+            cfg.baseForegroundColor = accent
+            button.configuration = cfg
+        }
+        if var apply = previewZone.applyButton.configuration {
+            apply.cornerStyle = .fixed
+            apply.background.cornerRadius = radius
+            apply.baseBackgroundColor = accent
+            previewZone.applyButton.configuration = apply
+        }
     }
 
     private func refreshOpenAppButton() {
@@ -370,12 +467,15 @@ final class KeyboardAICoordinator {
         previewZone.textView.text = ""
         setPreviewVisible(false, animated: true)
         controller?.clearPendingApplySnapshot()
+        applySnapshot = nil
+        updateRegenerateAvailability()
     }
 
     private func showPreview(with text: String) {
         guard AppGroupStore.shared.aiPreviewBeforeApply else { return }
         previewZone.textView.text = text
         setPreviewVisible(true, animated: true)
+        updateRegenerateAvailability()
     }
 
     private func applyPreview() {
@@ -385,6 +485,37 @@ final class KeyboardAICoordinator {
         setPreviewVisible(false, animated: true)
         statusRow.statusLabel.text = ""
         updateStatusVisibility()
+        applySnapshot = nil
+        updateRegenerateAvailability()
+    }
+
+    private func copyPreviewText() {
+        let text = previewZone.textView.text ?? ""
+        guard !text.isEmpty else { return }
+        UIPasteboard.general.string = text
+        statusRow.statusLabel.text = localize("keyboard.copied")
+        updateStatusVisibility()
+    }
+
+    private func regeneratePreview() {
+        guard !isTransformInFlight, let last = lastTransform else { return }
+        let previous = previewZone.textView.text ?? ""
+        runTransform(
+            mode: last.mode,
+            sourceText: last.text,
+            snapshot: last.snapshot,
+            previousOutput: previous.isEmpty ? nil : previous,
+            isRegenerate: true
+        )
+    }
+
+    private func updateRegenerateAvailability() {
+        let can = lastTransform != nil && !previewZone.isHidden && !isTransformInFlight
+        previewZone.regenerateButton.isEnabled = can
+        previewZone.regenerateButton.alpha = can ? 1 : 0.42
+        let hasText = !(previewZone.textView.text ?? "").isEmpty
+        previewZone.copyButton.isEnabled = hasText && !isTransformInFlight
+        previewZone.copyButton.alpha = (hasText && !isTransformInFlight) ? 1 : 0.42
     }
 
     // MARK: - Rewrite
@@ -398,7 +529,52 @@ final class KeyboardAICoordinator {
     }
 
     private func runTransform(mode: RewriteMode) {
+        guard !isTransformInFlight else { return }
+
+        let previewVisible = !previewZone.isHidden
+        let suggestion = (previewZone.textView.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Chain: while dialog is open, next bar press transforms the current suggestion.
+        if previewVisible, !suggestion.isEmpty, let snap = applySnapshot ?? lastTransform?.snapshot {
+            runTransform(
+                mode: mode,
+                sourceText: suggestion,
+                snapshot: snap,
+                previousOutput: nil,
+                isRegenerate: false,
+                preserveApplySnapshot: true
+            )
+            return
+        }
+
+        let touchDown = pendingRewriteFromTouchDown
+        pendingRewriteFromTouchDown = nil
         guard let controller else { return }
+        let live = controller.rewriteContext()
+        let locked = KeyboardActionService.mergeRewriteContexts(touchDown: touchDown, live: live)
+        let lockedText = locked.0.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lockedText.isEmpty else { return }
+
+        runTransform(
+            mode: mode,
+            sourceText: lockedText,
+            snapshot: locked.1,
+            previousOutput: nil,
+            isRegenerate: false,
+            preserveApplySnapshot: false
+        )
+    }
+
+    private func runTransform(
+        mode: RewriteMode,
+        sourceText: String,
+        snapshot: RewriteSnapshot,
+        previousOutput: String?,
+        isRegenerate: Bool,
+        preserveApplySnapshot: Bool = true
+    ) {
+        guard let controller else { return }
+        guard !isTransformInFlight else { return }
 
         guard KeyboardExtensionFullAccess.allowsNetwork(for: controller.hasFullAccess) else {
             statusRow.statusLabel.text = localize("keyboard.ai_need_full_access")
@@ -406,17 +582,7 @@ final class KeyboardAICoordinator {
             return
         }
 
-        let touchDown = pendingRewriteFromTouchDown
-        pendingRewriteFromTouchDown = nil
-
-        let live = controller.rewriteContext()
-        let locked = KeyboardActionService.mergeRewriteContexts(touchDown: touchDown, live: live)
-        let lockedText = locked.0.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lockedSnapshot = locked.1
-
-        controller.clearPendingApplySnapshot()
-        hidePreview()
-
+        let lockedText = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !lockedText.isEmpty else { return }
 
         guard AppGroupStore.shared.isSessionValid() else {
@@ -426,18 +592,51 @@ final class KeyboardAICoordinator {
             return
         }
 
-        let workingKey: String = switch mode {
-        case .proofread: "keyboard.working_grammar"
-        case .rewrite: "keyboard.working_improve"
-        case .shorten: "keyboard.working_shorten"
-        case .expand: "keyboard.working_expand"
+        controller.clearPendingApplySnapshot()
+        if !isRegenerate && !preserveApplySnapshot {
+            hidePreview()
+            applySnapshot = snapshot
+        } else if applySnapshot == nil {
+            applySnapshot = snapshot
+        }
+
+        // Regenerate keeps the original source; chained bar presses update source to the suggestion.
+        if isRegenerate {
+            // lastTransform.source stays as the original request text
+        } else {
+            lastTransform = (mode: mode, text: lockedText, snapshot: applySnapshot ?? snapshot)
+        }
+
+        isTransformInFlight = true
+        updateRegenerateAvailability()
+
+        let workingKey: String
+        if isRegenerate {
+            workingKey = "keyboard.working_regenerate"
+        } else {
+            workingKey = switch mode {
+            case .proofread: "keyboard.working_grammar"
+            case .rewrite: "keyboard.working_improve"
+            case .shorten: "keyboard.working_shorten"
+            case .expand: "keyboard.working_expand"
+            }
         }
         statusRow.statusLabel.text = localize(workingKey)
         updateStatusVisibility()
 
         let style = AppGroupStore.shared.conversationStyle
-        let text = lockedText
-        let snap = lockedSnapshot
+        // Regenerate always uses the original source from lastTransform.
+        let textForAPI: String
+        let modeForAPI: RewriteMode
+        if isRegenerate, let last = lastTransform {
+            textForAPI = last.text
+            modeForAPI = last.mode
+        } else {
+            textForAPI = lockedText
+            modeForAPI = mode
+        }
+        let snap = applySnapshot ?? snapshot
+        let prev = previousOutput
 
         DispatchQueue.main.async { [weak self] in
             Task { @MainActor in
@@ -449,6 +648,8 @@ final class KeyboardAICoordinator {
                     do {
                         try await SupabaseDeviceAPI.registerForceRefresh()
                     } catch {
+                        self.isTransformInFlight = false
+                        self.updateRegenerateAvailability()
                         self.statusRow.statusLabel.text = KeyboardExtensionL10n.userFacingError(error)
                         self.updateStatusVisibility()
                         return
@@ -456,7 +657,12 @@ final class KeyboardAICoordinator {
                 }
 
                 do {
-                    let out = try await RewriteAPI.rewrite(text: text, mode: mode, style: style)
+                    let out = try await RewriteAPI.rewrite(
+                        text: textForAPI,
+                        mode: modeForAPI,
+                        style: style,
+                        previousOutput: prev
+                    )
                     if AppGroupStore.shared.aiPreviewBeforeApply {
                         controller.setPendingApplySnapshot(snap)
                         self.showPreview(with: out)
@@ -464,10 +670,15 @@ final class KeyboardAICoordinator {
                     } else {
                         controller.applyRewrite(result: out, snapshot: snap)
                         self.statusRow.statusLabel.text = self.localize("keyboard.done")
+                        self.applySnapshot = nil
                     }
+                    self.isTransformInFlight = false
+                    self.updateRegenerateAvailability()
                     self.updateStatusVisibility()
                     self.refreshOpenAppButton()
                 } catch {
+                    self.isTransformInFlight = false
+                    self.updateRegenerateAvailability()
                     self.statusRow.statusLabel.text = KeyboardExtensionL10n.userFacingError(error)
                     self.updateStatusVisibility()
                 }

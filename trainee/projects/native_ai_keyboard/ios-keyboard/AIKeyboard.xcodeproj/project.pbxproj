@@ -161,7 +161,7 @@
 		3DB55353BD54A3D323F312BC /* KeyboardTextReplacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardTextReplacement.swift; sourceTree = "<group>"; };
 		42932DB751AD9BBCFB14EAA1 /* KeyboardNativePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNativePalette.swift; sourceTree = "<group>"; };
 		43C5580174219D50460EC93F /* KeyboardState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardState.swift; sourceTree = "<group>"; };
-		4721407E776A19D36C690CE2 /* AIKeyboardKeyboard.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AIKeyboardKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4721407E776A19D36C690CE2 /* AIKeyboardKeyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIKeyboardKeyboard.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		49747FBF7050E16EF2F351FE /* InputViewBackdropNeutralizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputViewBackdropNeutralizer.swift; sourceTree = "<group>"; };
 		4A0338C7A2E02C0C011C722A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		53B4559903A6D0D8DF719490 /* KeyboardLayoutEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardLayoutEngine.swift; sourceTree = "<group>"; };
@@ -194,7 +194,7 @@
 		99933DB47AB7F595CC558A61 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9DB5AA61DE7C124074625B8C /* AppleKeyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleKeyButton.swift; sourceTree = "<group>"; };
 		A6B2890A32481EAA4AB99BF6 /* KeyboardFullAccessState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardFullAccessState.swift; sourceTree = "<group>"; };
-		A85BE0E1E51B673193DE00C1 /* AIKeyboard.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AIKeyboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A85BE0E1E51B673193DE00C1 /* AIKeyboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIKeyboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A92A017B272E690F14CADA4A /* AccountSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSync.swift; sourceTree = "<group>"; };
 		AECCE96AD799FBEC37C25FD0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		AF6CC57C6DE806B1DC94D3F6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -228,7 +228,7 @@
 		FC54632D56C40924BC9219E6 /* AppConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConstants.swift; sourceTree = "<group>"; };
 		FE40A38CF4DB2A63088A7459 /* KeyboardExtensionSigningDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardExtensionSigningDiagnostics.swift; sourceTree = "<group>"; };
 		FEA64C1342860BC2A3AB9452 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
-		"TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BaseDSYM.xcconfig; sourceTree = "<group>"; };
+		"TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = BaseDSYM.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -262,6 +262,7 @@
 				B42C817EB1A388C575670655 /* KeyboardExtension */,
 				649074E8D47F5A746526CC41 /* Shared */,
 				1DCB8402EB9C88F48EA3D4AB /* Products */,
+				3C0014752FEB543B0064C919 /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -287,6 +288,14 @@
 				4721407E776A19D36C690CE2 /* AIKeyboardKeyboard.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		3C0014752FEB543B0064C919 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				"TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */,
+			);
+			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 		540540A13256B109A8814536 /* Resources */ = {
@@ -412,14 +421,6 @@
 			path = KeyboardCore;
 			sourceTree = "<group>";
 		};
-		"TEMP_CB275179-6AD4-4A07-B560-E5500081CFF5" /* ios-keyboard */ = {
-			isa = PBXGroup;
-			children = (
-				"TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */,
-			);
-			path = "ios-keyboard";
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -480,9 +481,11 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					1D0D052FDCA78E90F3C7922A = {
+						DevelopmentTeam = 4GW994398K;
 						ProvisioningStyle = Automatic;
 					};
 					B99A06E22870E4E2C477DB80 = {
+						DevelopmentTeam = 4GW994398K;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -710,7 +713,7 @@
 /* Begin XCBuildConfiguration section */
 		0095FB51B3AE0CFECBFDB284 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */;
+			baseConfigurationReference = "TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AIKeyboard/AIKeyboard.entitlements;
@@ -723,13 +726,17 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.masterfabric.nativeaikeyboard;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
 		1C5592448A1B558280970731 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */;
+			baseConfigurationReference = "TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = KeyboardExtension/KeyboardExtension.entitlements;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -747,7 +754,7 @@
 		};
 		3C002ADFD38BB5D8684A2FAF /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */;
+			baseConfigurationReference = "TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AIKeyboard/AIKeyboard.entitlements;
@@ -760,13 +767,17 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.masterfabric.nativeaikeyboard;
 				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
 		43D4C3F1C1E254C4C1F8FE3E /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_4ACE62B1-E2EC-4327-B69F-E617E4926E2E" /* BaseDSYM.xcconfig */;
+			baseConfigurationReference = "TEMP_98D576DC-857B-49D2-BF71-DAB5DBF71CB0" /* BaseDSYM.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = KeyboardExtension/KeyboardExtension.entitlements;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -819,6 +830,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4GW994398K;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -879,6 +891,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4GW994398K;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;

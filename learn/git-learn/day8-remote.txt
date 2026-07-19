@@ -1,0 +1,5 @@
+Git Day 8 — Connecting to a Remote
+Practice directory: learn/git-learn/
+
+Remote name: origin
+Remote URL: https://github.com/Hemre5132/agentic-ai-developer.git

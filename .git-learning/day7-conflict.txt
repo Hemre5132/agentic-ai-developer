@@ -1,2 +1,3 @@
 Title: Git Day 7 merge conflict practice
-Author: main branch
+Author: feature branch
+

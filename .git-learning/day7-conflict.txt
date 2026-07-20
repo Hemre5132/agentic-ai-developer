@@ -1,7 +1,0 @@
-Title: Git Day 7 merge conflict practice
-
-Author: main branch (updated)
-
-Author: feature branch
-
-

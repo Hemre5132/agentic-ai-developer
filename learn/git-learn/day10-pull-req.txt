@@ -1,1 +1,1 @@
-this is file added only to remote to show how pull request works 
+this is file changed to see pull request conflict
